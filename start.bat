@@ -1,9 +1,14 @@
 @echo off
-rem Windows: Doppelklick auf diese Datei startet das Programm.
+rem Windows: double-click to run Whale Tracker.
 cd /d "%~dp0"
-python whaletracker.py
-if errorlevel 1 (
-  echo.
-  echo Start fehlgeschlagen. Ist Python 3 von python.org installiert?
-  pause
+for %%P in (python3.12 python3.11 python3 python) do (
+  %%P -c "import tkinter" >nul 2>&1 && (
+    %%P whaletracker.py
+    goto :done
+  )
 )
+echo.
+echo No Python with tkinter found.
+echo Install Python from python.org and keep "tcl/tk and IDLE" ticked.
+pause
+:done

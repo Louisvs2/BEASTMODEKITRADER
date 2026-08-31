@@ -1,20 +1,19 @@
 """
-Datenquelle: Hyperliquid (oeffentlich, ohne Account, ohne API-Key, ohne Registrierung).
+Data source: Hyperliquid (public, no account, no API key, no registration).
 
-Es werden genau drei oeffentliche Endpunkte benutzt, dieselben, die auch die
-Website app.hyperliquid.xyz im Browser benutzt:
+Exactly three public endpoints are used - the same ones the website
+app.hyperliquid.xyz calls from the browser:
 
   1. https://stats-data.hyperliquid.xyz/Mainnet/leaderboard
-     -> die Liste der Trader (Rangliste), so wie sie unter
-        app.hyperliquid.xyz/leaderboard oeffentlich zu sehen ist.
-  2. POST https://api.hyperliquid.xyz/info  {"type": "clearinghouseState", "user": <adresse>}
-     -> die aktuell OFFENEN Positionen dieses Traders (live).
-  3. POST https://api.hyperliquid.xyz/info  {"type": "userFills", "user": <adresse>}
-     -> die zuletzt AUSGEFUEHRTEN Trades dieses Traders (live).
+     -> the trader ranking, as publicly shown on app.hyperliquid.xyz/leaderboard
+  2. POST https://api.hyperliquid.xyz/info  {"type": "clearinghouseState", "user": <address>}
+     -> that trader's currently OPEN positions (live)
+  3. POST https://api.hyperliquid.xyz/info  {"type": "userFills", "user": <address>}
+     -> that trader's most recently EXECUTED trades (live)
 
-Zusaetzlich {"type": "allMids"} fuer die aktuellen Marktpreise.
+Plus {"type": "allMids"} for current mark prices.
 
-Alles nur ueber urllib aus der Standardbibliothek - keine Installation noetig.
+Everything goes through urllib from the standard library - nothing to install.
 """
 
 import gzip
@@ -33,24 +32,24 @@ WEB_LEADERBOARD = "https://app.hyperliquid.xyz/leaderboard"
 USER_AGENT = "WhaleTracker/1.0 (+desktop; stdlib-urllib)"
 TIMEOUT = 45
 
-# Die Rangliste ist eine grosse Datei. Sie wird lokal zwischengespeichert und
-# nur auf Wunsch (oder wenn aelter als CACHE_MAX_AGE) neu geladen.
+# The ranking is a large file. It is cached on disk and only refetched on
+# demand, or once it is older than CACHE_MAX_AGE.
 CACHE_DIR = os.path.join(os.path.expanduser("~"), ".whaletracker")
 CACHE_FILE = os.path.join(CACHE_DIR, "leaderboard.json")
-CACHE_MAX_AGE = 60 * 60 * 6  # 6 Stunden
+CACHE_MAX_AGE = 60 * 60 * 6  # 6 hours
 MAX_LEADERBOARD_BYTES = 400 * 1024 * 1024
 
 WINDOWS = ("day", "week", "month", "allTime")
 WINDOW_LABEL = {
-    "day": "24 STUNDEN",
-    "week": "7 TAGE",
-    "month": "30 TAGE",
+    "day": "24H",
+    "week": "7D",
+    "month": "30D",
     "allTime": "ALL TIME",
 }
 
 
 class SourceError(Exception):
-    """Fehler beim Holen der Daten - wird im UI als Klartext angezeigt."""
+    """Something went wrong fetching data - shown to the user as plain text."""
 
 
 def _ssl_context():
@@ -67,11 +66,11 @@ def _open(req, timeout=TIMEOUT):
             return urllib.request.urlopen(req, timeout=timeout, context=ctx)
         return urllib.request.urlopen(req, timeout=timeout)
     except urllib.error.HTTPError as exc:
-        raise SourceError("Server antwortete mit HTTP %s (%s)" % (exc.code, exc.reason))
+        raise SourceError("Server replied HTTP %s (%s)" % (exc.code, exc.reason))
     except urllib.error.URLError as exc:
-        raise SourceError("Keine Verbindung: %s" % (exc.reason,))
+        raise SourceError("No connection: %s" % (exc.reason,))
     except Exception as exc:  # socket timeouts, ssl, ...
-        raise SourceError("Verbindungsfehler: %s" % (exc,))
+        raise SourceError("Connection failed: %s" % (exc,))
 
 
 def _decode_body(resp, raw):
@@ -81,7 +80,7 @@ def _decode_body(resp, raw):
 
 
 def post_info(payload):
-    """Ein POST an den oeffentlichen /info Endpunkt."""
+    """One POST to the public /info endpoint."""
     body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         INFO_URL,
@@ -99,11 +98,11 @@ def post_info(payload):
     try:
         return json.loads(text)
     except ValueError:
-        raise SourceError("Antwort war kein gueltiges JSON (%s ...)" % text[:120])
+        raise SourceError("Response was not valid JSON (%s ...)" % text[:120])
 
 
 # --------------------------------------------------------------------------
-# 1) Rangliste der Trader
+# 1) Trader ranking
 # --------------------------------------------------------------------------
 
 def _num(value, default=0.0):
@@ -114,10 +113,10 @@ def _num(value, default=0.0):
 
 
 def parse_leaderboard(data):
-    """Rohantwort -> Liste einfacher Trader-Dicts, absteigend nach 30-Tage-PnL."""
+    """Raw response -> list of plain trader dicts, sorted by 30-day PnL."""
     rows = data.get("leaderboardRows") if isinstance(data, dict) else data
     if not isinstance(rows, list):
-        raise SourceError("Unerwartetes Format der Rangliste.")
+        raise SourceError("Unexpected leaderboard format.")
 
     traders = []
     for row in rows:
@@ -128,7 +127,7 @@ def parse_leaderboard(data):
             continue
         perf = {}
         for entry in row.get("windowPerformances") or []:
-            # Format: ["day", {"pnl": "...", "roi": "...", "vlm": "..."}]
+            # shape: ["day", {"pnl": "...", "roi": "...", "vlm": "..."}]
             if isinstance(entry, (list, tuple)) and len(entry) == 2 and isinstance(entry[1], dict):
                 perf[entry[0]] = {
                     "pnl": _num(entry[1].get("pnl")),
@@ -146,13 +145,13 @@ def parse_leaderboard(data):
         })
 
     if not traders:
-        raise SourceError("Rangliste enthielt keine Trader.")
+        raise SourceError("Leaderboard contained no traders.")
     traders.sort(key=lambda t: t["perf"]["month"]["pnl"], reverse=True)
     return traders
 
 
 def cached_leaderboard_age():
-    """Alter des Caches in Sekunden, oder None wenn kein Cache da ist."""
+    """Cache age in seconds, or None when there is no cache."""
     if not os.path.exists(CACHE_FILE):
         return None
     return time.time() - os.path.getmtime(CACHE_FILE)
@@ -170,8 +169,8 @@ def load_cached_leaderboard():
 
 def fetch_leaderboard(progress=None, force=False, limit=250):
     """
-    Holt die Rangliste. Nutzt den lokalen Cache, wenn er frisch genug ist.
-    `progress(text)` wird waehrend des Downloads mit Statusmeldungen gerufen.
+    Fetch the ranking, reusing the local cache while it is fresh enough.
+    `progress(text)` receives status lines during the download.
     """
     def say(text):
         if progress:
@@ -181,10 +180,10 @@ def fetch_leaderboard(progress=None, force=False, limit=250):
     if not force and age is not None and age < CACHE_MAX_AGE:
         cached = load_cached_leaderboard()
         if cached:
-            say("Rangliste aus lokalem Cache (%d Min alt)." % int(age // 60))
+            say("Leaderboard from local cache (%d min old)." % int(age // 60))
             return cached[:limit], int(age)
 
-    say("Lade oeffentliche Rangliste von stats-data.hyperliquid.xyz ...")
+    say("Fetching public leaderboard from stats-data.hyperliquid.xyz ...")
     req = urllib.request.Request(
         LEADERBOARD_URL,
         headers={"Accept": "application/json", "Accept-Encoding": "gzip", "User-Agent": USER_AGENT},
@@ -201,19 +200,19 @@ def fetch_leaderboard(progress=None, force=False, limit=250):
             break
         read += len(chunk)
         if read > MAX_LEADERBOARD_BYTES:
-            raise SourceError("Rangliste unerwartet gross (>400 MB) - abgebrochen.")
+            raise SourceError("Leaderboard unexpectedly large (>400 MB) - aborted.")
         buf.write(chunk)
         if total:
-            say("Lade Rangliste ... %d %%  (%.1f MB)" % (read * 100 // total, read / 1048576.0))
+            say("Downloading leaderboard ... %d%%  (%.1f MB)" % (read * 100 // total, read / 1048576.0))
         else:
-            say("Lade Rangliste ... %.1f MB" % (read / 1048576.0,))
+            say("Downloading leaderboard ... %.1f MB" % (read / 1048576.0,))
 
-    say("Werte Rangliste aus ...")
+    say("Parsing leaderboard ...")
     text = _decode_body(resp, buf.getvalue())
     try:
         traders = parse_leaderboard(json.loads(text))
     except ValueError:
-        raise SourceError("Rangliste war kein gueltiges JSON.")
+        raise SourceError("Leaderboard was not valid JSON.")
 
     top = traders[:limit]
     try:
@@ -221,18 +220,18 @@ def fetch_leaderboard(progress=None, force=False, limit=250):
         with open(CACHE_FILE, "w", encoding="utf-8") as fh:
             json.dump(top, fh)
     except Exception:
-        pass  # Cache ist Komfort, kein Muss
+        pass  # the cache is a convenience, not a requirement
 
-    say("%d Trader geladen." % len(top))
+    say("%d traders loaded." % len(top))
     return top, 0
 
 
 # --------------------------------------------------------------------------
-# 2) Live-Daten eines einzelnen Traders
+# 2) Live data for a single trader
 # --------------------------------------------------------------------------
 
 def fetch_mids():
-    """Aktuelle Marktpreise: {"ETH": 3012.4, ...}"""
+    """Current mark prices: {"ETH": 3012.4, ...}"""
     data = post_info({"type": "allMids"})
     if not isinstance(data, dict):
         return {}
@@ -245,9 +244,9 @@ def fetch_mids():
 
 
 def _parse_clearinghouse(data):
-    """Rohantwort -> {"accountValue","totalNotional","withdrawable","positions"}."""
+    """Raw response -> {"accountValue","totalNotional","withdrawable","positions"}."""
     if not isinstance(data, dict):
-        raise SourceError("Unerwartete Antwort fuer Positionen.")
+        raise SourceError("Unexpected response for positions.")
 
     summary = data.get("marginSummary") or {}
     account_value = _num(summary.get("accountValue"))
@@ -285,12 +284,12 @@ def _parse_clearinghouse(data):
 
 
 def fetch_positions(address):
-    """Aktuell offene Perp-Positionen des Traders (live)."""
+    """The trader's currently open perp positions (live)."""
     return _parse_clearinghouse(post_info({"type": "clearinghouseState", "user": address}))
 
 
 def _parse_fills(data, limit=60):
-    """Rohantwort -> Liste der zuletzt ausgefuehrten Trades, neueste zuerst."""
+    """Raw response -> most recent executed trades, newest first."""
     if not isinstance(data, list):
         return []
     fills = []
@@ -300,7 +299,7 @@ def _parse_fills(data, limit=60):
         fills.append({
             "time": int(f.get("time") or 0),
             "coin": f.get("coin", "?"),
-            "side": "KAUF" if f.get("side") == "B" else "VERKAUF",
+            "side": "BUY" if f.get("side") == "B" else "SELL",
             "dir": f.get("dir", ""),
             "px": _num(f.get("px")),
             "sz": _num(f.get("sz")),
@@ -312,5 +311,5 @@ def _parse_fills(data, limit=60):
 
 
 def fetch_fills(address, limit=60):
-    """Die zuletzt ausgefuehrten Trades des Traders (live)."""
+    """The trader's most recently executed trades (live)."""
     return _parse_fills(post_info({"type": "userFills", "user": address}), limit)

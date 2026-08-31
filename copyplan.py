@@ -1,26 +1,33 @@
 """
-Rechnet aus den ECHTEN offenen Positionen eines Traders einen konkreten,
-nachbaubaren Plan fuer das eigene, viel kleinere Kapital.
+Turns a trader's REAL open positions into a concrete, executable plan sized
+for your own (much smaller) account.
 
-Reine Rechenlogik, kein Netz, kein UI -> laesst sich direkt testen
-(siehe test_copyplan.py).
+Pure maths - no network, no UI - so it can be tested directly
+(see test_copyplan.py).
 """
 
-RISK_MODES = {
-    # exposure: wie viel Gesamt-Nominalvolumen im Verhaeltnis zum Kapital
-    # stop:     Stop-Abstand vom aktuellen Preis
-    # maxLev:   Obergrenze fuer den Hebel
-    # minTicket: unter diesem Betrag lohnt die Position nicht
-    "VORSICHTIG":  {"exposure": 0.50, "stop": 0.05, "maxLev": 2.0, "minTicket": 25.0, "tranchen": 3},
-    "AUSGEWOGEN":  {"exposure": 1.00, "stop": 0.08, "maxLev": 3.0, "minTicket": 20.0, "tranchen": 2},
-    "AGGRESSIV":   {"exposure": 1.50, "stop": 0.12, "maxLev": 5.0, "minTicket": 15.0, "tranchen": 1},
+RISK_TIERS = {
+    # exposure:  total notional as a multiple of your capital
+    # stop:      stop distance from the current price
+    # maxLev:    hard cap on leverage
+    # minTicket: below this a position is not worth opening
+    "SAFE":     {"exposure": 0.50, "stop": 0.05, "maxLev": 2.0, "minTicket": 25.0, "tranches": 3},
+    "BALANCED": {"exposure": 1.00, "stop": 0.08, "maxLev": 3.0, "minTicket": 20.0, "tranches": 2},
+    "DEGEN":    {"exposure": 1.50, "stop": 0.12, "maxLev": 5.0, "minTicket": 15.0, "tranches": 1},
 }
-DEFAULT_MODE = "AUSGEWOGEN"
-MAX_SINGLE_WEIGHT = 0.40  # keine Einzelposition ueber 40 % des Plans
+TIER_ORDER = ("SAFE", "BALANCED", "DEGEN")
+DEFAULT_TIER = "BALANCED"
+MAX_SINGLE_WEIGHT = 0.40  # no single leg may exceed 40 % of the plan
+
+TIER_BLURB = {
+    "SAFE": "Half your capital at risk, tight 5 % stops, max 2x leverage.",
+    "BALANCED": "Capital matched 1:1, 8 % stops, max 3x leverage.",
+    "DEGEN": "1.5x your capital, wide 12 % stops, up to 5x leverage.",
+}
 
 
 def _round_size(size):
-    """Stueckzahl auf eine sinnvolle Stellenzahl runden."""
+    """Round a quantity to a sensible number of decimals."""
     if size >= 1000:
         return round(size, 1)
     if size >= 1:
@@ -30,18 +37,18 @@ def _round_size(size):
     return float("%.6g" % size)
 
 
-def build_plan(positions, capital, mode=DEFAULT_MODE, mids=None):
+def build_plan(positions, capital, tier=DEFAULT_TIER, mids=None):
     """
-    positions: Liste aus hyperliquid_source.fetch_positions()["positions"]
-    capital:   eigenes Kapital in USD
-    mode:      Schluessel aus RISK_MODES
-    mids:      aktuelle Marktpreise {coin: preis} (optional)
+    positions: list from hyperliquid_source.fetch_positions()["positions"]
+    capital:   your own capital in USD
+    tier:      key of RISK_TIERS
+    mids:      current mark prices {coin: price} (optional)
 
-    Rueckgabe:
-      {"mode","capital","exposure","legs":[...],"skipped":[...],
+    Returns:
+      {"tier","capital","exposure","legs":[...],"skipped":[...],
        "totalNotional","totalMargin","totalRisk"}
     """
-    cfg = RISK_MODES.get(mode) or RISK_MODES[DEFAULT_MODE]
+    cfg = RISK_TIERS.get(tier) or RISK_TIERS[DEFAULT_TIER]
     mids = mids or {}
     capital = max(0.0, float(capital or 0.0))
 
@@ -49,20 +56,19 @@ def build_plan(positions, capital, mode=DEFAULT_MODE, mids=None):
     total_notional = sum(p["notional"] for p in open_positions)
     if capital <= 0 or total_notional <= 0:
         return {
-            "mode": mode, "capital": capital, "exposure": cfg["exposure"],
-            "legs": [], "skipped": [], "totalNotional": 0.0,
-            "totalMargin": 0.0, "totalRisk": 0.0,
+            "tier": tier, "capital": capital, "exposure": cfg["exposure"],
+            "stopPct": cfg["stop"], "legs": [], "skipped": [],
+            "totalNotional": 0.0, "totalMargin": 0.0, "totalRisk": 0.0,
         }
 
     budget = capital * cfg["exposure"]
 
-    # Gewichte aus den echten Positionsgroessen, gedeckelt und neu normiert,
-    # damit eine einzelne Riesenposition den Plan nicht komplett dominiert.
-    weights = []
-    for p in open_positions:
-        weights.append(min(p["notional"] / total_notional, MAX_SINGLE_WEIGHT))
-    wsum = sum(weights) or 1.0
-    weights = [w / wsum for w in weights]
+    # Weights come from the trader's real position sizes, capped and
+    # renormalised so one huge position cannot swallow the whole plan.
+    weights = [min(p["notional"] / total_notional, MAX_SINGLE_WEIGHT)
+               for p in open_positions]
+    weight_sum = sum(weights) or 1.0
+    weights = [w / weight_sum for w in weights]
 
     legs, skipped = [], []
     for pos, weight in zip(open_positions, weights):
@@ -70,13 +76,13 @@ def build_plan(positions, capital, mode=DEFAULT_MODE, mids=None):
         price = mids.get(coin) or pos.get("entryPx") or 0.0
         notional = budget * weight
         if price <= 0:
-            skipped.append({"coin": coin, "grund": "kein Preis verfuegbar"})
+            skipped.append({"coin": coin, "reason": "no price available"})
             continue
         if notional < cfg["minTicket"]:
             skipped.append({
                 "coin": coin,
-                "grund": "nur %.2f USD Anteil - unter Mindestgroesse %.0f USD"
-                         % (notional, cfg["minTicket"]),
+                "reason": "only $%.2f allocated - below the $%.0f minimum"
+                          % (notional, cfg["minTicket"]),
             })
             continue
 
@@ -84,12 +90,11 @@ def build_plan(positions, capital, mode=DEFAULT_MODE, mids=None):
         lev = max(1.0, min(pos.get("leverage") or 1.0, cfg["maxLev"]))
         stop_px = price * (1 - cfg["stop"]) if is_long else price * (1 + cfg["stop"])
         take_px = price * (1 + 2 * cfg["stop"]) if is_long else price * (1 - 2 * cfg["stop"])
-        risk = notional * cfg["stop"]
 
         legs.append({
             "coin": coin,
             "side": pos["side"],
-            "order": "LONG / KAUFEN" if is_long else "SHORT / VERKAUFEN",
+            "action": "BUY / LONG" if is_long else "SELL / SHORT",
             "weight": weight * 100.0,
             "notional": notional,
             "price": price,
@@ -98,15 +103,15 @@ def build_plan(positions, capital, mode=DEFAULT_MODE, mids=None):
             "margin": notional / lev,
             "stop": stop_px,
             "take": take_px,
-            "risk": risk,
-            "tranchen": cfg["tranchen"],
+            "risk": notional * cfg["stop"],
+            "tranches": cfg["tranches"],
             "whaleEntry": pos.get("entryPx", 0.0),
             "whaleNotional": pos.get("notional", 0.0),
             "whaleRoe": pos.get("roe", 0.0),
         })
 
     return {
-        "mode": mode,
+        "tier": tier,
         "capital": capital,
         "exposure": cfg["exposure"],
         "stopPct": cfg["stop"],
@@ -119,70 +124,72 @@ def build_plan(positions, capital, mode=DEFAULT_MODE, mids=None):
 
 
 def _money(value):
-    return "{:,.2f}".format(value).replace(",", " ")
+    return "{:,.2f}".format(value)
 
 
 def plan_as_text(plan, trader_address, trader_name="", account_value=0.0):
-    """Der Plan als reiner Text - genau das, was in die Zwischenablage geht."""
+    """The plan as plain text - exactly what lands on the clipboard."""
     lines = []
-    lines.append("=" * 66)
-    lines.append("COPY-PLAN  -  WHALE TRACKER")
-    lines.append("=" * 66)
-    lines.append("Trader   : %s%s" % (trader_address, (" (%s)" % trader_name) if trader_name else ""))
+    lines.append("=" * 68)
+    lines.append("COPY PLAN  ·  WHALE TRACKER")
+    lines.append("=" * 68)
+    lines.append("Trader        : %s%s" % (trader_address,
+                                           (" (%s)" % trader_name) if trader_name else ""))
     if account_value:
-        lines.append("Dessen Kontowert: %s USD" % _money(account_value))
-    lines.append("Dein Kapital    : %s USD" % _money(plan["capital"]))
-    lines.append("Risikomodus     : %s  (Gesamt-Exposure %.0f %% des Kapitals)"
-                 % (plan["mode"], plan["exposure"] * 100))
+        lines.append("Their equity  : $%s" % _money(account_value))
+    lines.append("Your capital  : $%s" % _money(plan["capital"]))
+    lines.append("Risk tier     : %s  (total exposure %.0f %% of capital)"
+                 % (plan["tier"], plan["exposure"] * 100))
     lines.append("")
 
     if not plan["legs"]:
-        lines.append("Kein umsetzbarer Plan: der Trader hat gerade keine offenen")
-        lines.append("Positionen, oder dein Kapital ist zu klein fuer sinnvolle Groessen.")
+        lines.append("No executable plan: this trader currently holds no open")
+        lines.append("positions, or your capital is too small for sensible sizes.")
         return "\n".join(lines)
 
-    lines.append("KONKRETE ORDERS")
-    lines.append("-" * 66)
+    lines.append("ORDERS")
+    lines.append("-" * 68)
     for i, leg in enumerate(plan["legs"], 1):
-        lines.append("%d) %s  %s" % (i, leg["coin"], leg["order"]))
-        lines.append("   Einsatz      : %s USD Nominal  (%.1f %% des Plans)"
-                     % (_money(leg["notional"]), leg["weight"]))
-        lines.append("   Menge        : %s %s  zum Preis von %s USD"
+        lines.append("%d) %s  %s" % (i, leg["coin"], leg["action"]))
+        lines.append("   Size       : %s %s  at $%s"
                      % (leg["size"], leg["coin"], _money(leg["price"])))
-        lines.append("   Hebel        : %.1fx  ->  Margin %s USD"
+        lines.append("   Notional   : $%s  (%.1f %% of the plan)"
+                     % (_money(leg["notional"]), leg["weight"]))
+        lines.append("   Leverage   : %.1fx  ->  $%s margin"
                      % (leg["leverage"], _money(leg["margin"])))
-        lines.append("   Stop-Loss    : %s USD   (Verlust dann ca. %s USD)"
+        lines.append("   Stop loss  : $%s   (loses about $%s)"
                      % (_money(leg["stop"]), _money(leg["risk"])))
-        lines.append("   Take-Profit  : %s USD" % _money(leg["take"]))
-        if leg["tranchen"] > 1:
-            lines.append("   Einstieg     : in %d gleich grossen Tranchen kaufen, nicht auf einmal"
-                         % leg["tranchen"])
-        lines.append("   Der Trader   : Einstieg %s USD, Position %s USD, aktuell %+.1f %%"
-                     % (_money(leg["whaleEntry"]), _money(leg["whaleNotional"]), leg["whaleRoe"]))
+        lines.append("   Take profit: $%s" % _money(leg["take"]))
+        if leg["tranches"] > 1:
+            lines.append("   Entry      : split into %d equal tranches, not all at once"
+                         % leg["tranches"])
+        lines.append("   Their side : entry $%s, position $%s, currently %+.1f %%"
+                     % (_money(leg["whaleEntry"]), _money(leg["whaleNotional"]),
+                        leg["whaleRoe"]))
         lines.append("")
 
-    lines.append("-" * 66)
-    lines.append("Summe Nominal : %s USD" % _money(plan["totalNotional"]))
-    lines.append("Summe Margin  : %s USD" % _money(plan["totalMargin"]))
-    lines.append("Max. Verlust wenn alle Stops greifen: %s USD (%.1f %% vom Kapital)"
+    lines.append("-" * 68)
+    lines.append("Total notional : $%s" % _money(plan["totalNotional"]))
+    lines.append("Total margin   : $%s" % _money(plan["totalMargin"]))
+    lines.append("Worst case if every stop hits: $%s  (%.1f %% of capital)"
                  % (_money(plan["totalRisk"]),
                     (plan["totalRisk"] / plan["capital"] * 100) if plan["capital"] else 0))
     lines.append("")
 
     if plan["skipped"]:
-        lines.append("NICHT UEBERNOMMEN")
-        for s in plan["skipped"]:
-            lines.append("  - %s: %s" % (s["coin"], s["grund"]))
+        lines.append("SKIPPED")
+        for item in plan["skipped"]:
+            lines.append("  - %s: %s" % (item["coin"], item["reason"]))
         lines.append("")
 
-    lines.append("REGELN")
-    lines.append("  1. Stop-Loss sofort mit der Order setzen, nicht spaeter.")
-    lines.append("  2. Nie nachkaufen, wenn der Preis unter dem Stop steht.")
-    lines.append("  3. Der Trader kann jederzeit aussteigen, ohne dass du es merkst.")
-    lines.append("     Position taeglich gegen seine Live-Position pruefen.")
-    lines.append("  4. Er handelt mit Hebel und einem Vielfachen deines Kapitals -")
-    lines.append("     seine Verlusttoleranz ist nicht deine.")
+    lines.append("RULES")
+    lines.append("  1. Place the stop loss with the order, not later.")
+    lines.append("  2. Never add to a position trading below its stop.")
+    lines.append("  3. This trader can exit at any moment without you noticing.")
+    lines.append("     Re-check their live position daily.")
+    lines.append("  4. They trade with leverage and many times your capital -")
+    lines.append("     their pain tolerance is not yours.")
     lines.append("")
-    lines.append("Hinweis: Dieses Programm fuehrt nichts aus. Es liest oeffentliche")
-    lines.append("Daten und rechnet. Keine Anlageberatung.")
+    lines.append("This program executes nothing. It reads public data and does")
+    lines.append("the maths. Not financial advice.")
     return "\n".join(lines)

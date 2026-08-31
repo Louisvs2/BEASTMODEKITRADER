@@ -1,92 +1,122 @@
 # WHALE TRACKER
 
-Desktop-Programm fuer Windows, macOS und Linux. Es zeigt die oeffentliche
-Trader-Rangliste von **Hyperliquid**, die **live offenen Positionen** der
-groessten Trader, ihre **zuletzt ausgefuehrten Trades** — und rechnet daraus
-einen **konkreten Copy-Plan** fuer das eigene Kapital.
+A desktop app that shows Hyperliquid's public trader leaderboard, each
+trader's **live open positions**, their **most recent trades** — and turns
+those real positions into a **concrete copy plan** sized for your own capital.
 
-Echte Daten. Kein Mock. Kein Account, kein API-Key, keine Registrierung,
-keine Installation von Zusatzpaketen.
+Real data. No mock. No account, no API key, no signup, nothing to install
+beyond Python itself.
 
 ---
 
-## Starten
+## Run it on a Mac
 
-**Windows** — Doppelklick auf `start.bat`
-**macOS** — Doppelklick auf `start.command`
-**Linux** — `./start.sh`
+**Double-click `WhaleTracker.app`.**
 
-Oder in einem Terminal im Projektordner:
+That is the whole thing. The bundle finds a usable Python on your Mac by
+itself and starts the app. If none exists it tells you exactly what to install.
+
+First launch may show a Gatekeeper warning, because the app is not signed by
+Apple. Right-click `WhaleTracker.app` → **Open** → **Open**. Once only.
+
+Prefer the Terminal? `./start.command`, or `python3 whaletracker.py`.
+
+### If it says no Python was found
+
+You need a Python whose Tk actually works on your macOS version. The newest
+Python is not always the right one — Python 3.14 ships a Tk that demands
+macOS 15.7 and aborts on anything older with:
 
 ```
-python3 whaletracker.py
+macOS 15 (1507) or later required, have instead 15 (1506) !
 ```
 
-### Voraussetzung
+Two ways out:
 
-Python 3 (ab 3.8) muss auf dem Rechner sein.
+1. **Update macOS** — System Settings → General → Software Update.
+2. **Install [Python 3.12](https://www.python.org/downloads/release/python-3128/)**
+   (macOS 64-bit universal2 installer). Its Tk runs on older macOS. You can
+   keep 3.14 installed; the launcher picks whichever one works.
 
-* **Windows**: Python von [python.org](https://www.python.org/downloads/) installieren.
-  Beim Installieren "Add python.exe to PATH" ankreuzen und "tcl/tk and IDLE"
-  angehakt lassen.
-* **macOS**: Python von python.org installieren (das mitgelieferte Apple-Python
-  hat manchmal kein tkinter). Alternativ `brew install python-tk`.
-* **Linux**: `sudo apt install python3 python3-tk`
+Check it in one line:
 
-Beim ersten macOS-Start meldet sich eventuell Gatekeeper. Dann einmal
-Rechtsklick auf `start.command` → "Oeffnen" → "Oeffnen".
+```
+python3.12 -c "import tkinter; tkinter.Tk(); print('window works')"
+```
 
----
+### An app that needs no Python at all
 
-## Wie man es benutzt
+```
+./build_app.sh
+```
 
-1. **Startseite**: Die Rangliste laedt automatisch. Oben rechts laesst sich der
-   Zeitraum umschalten — 24 Stunden, 7 Tage, 30 Tage, All Time. Sortiert wird
-   immer nach Gewinn im gewaehlten Zeitraum.
-2. **Doppelklick** auf einen Trader. Dann sieht man:
-   * seine **offenen Positionen**: Asset, Long oder Short, Groesse, Einstiegspreis,
-     Positionswert, Hebel, aktueller Gewinn/Verlust, Liquidationspreis;
-   * seine **letzten Trades**: wann, welches Asset, gekauft oder verkauft, zu
-     welchem Preis, welche Menge, welcher realisierte Gewinn.
-   * "AKTUALISIEREN" holt den Stand neu.
-3. **`>_ COPY NOW`**: Eigenes Kapital eintragen, Risiko waehlen
-   (vorsichtig / ausgewogen / aggressiv). Das Programm rechnet die Positionen
-   des Traders auf die eigene Kontogroesse herunter und schreibt pro Position
-   konkret hin:
+Bundles Python and Tk into `dist/WhaleTracker.app` via PyInstaller. Drag that
+into `/Applications` and it runs anywhere, even on a Mac with no Python.
 
-   * Long oder Short,
-   * Einsatz in USD und **die Stueckzahl** zum aktuellen Marktpreis,
-   * empfohlener Hebel und die noetige Margin,
-   * **Stop-Loss** und **Take-Profit** als konkrete Preise,
-   * wie viel man verliert, wenn der Stop greift,
-   * und wie die Position des Traders selbst dasteht.
+## Windows and Linux
 
-   Unten stehen die Summen und der maximale Verlust, wenn alle Stops greifen.
-   Der Plan laesst sich per Knopfdruck in die Zwischenablage kopieren oder als
-   Textdatei speichern.
+`start.bat` on Windows, `./start.sh` on Linux
+(`sudo apt install python3-tk` first).
 
 ---
 
-## Woher die Daten kommen
+## How to use it
 
-Es werden genau die oeffentlichen Endpunkte benutzt, die auch die Website
-`app.hyperliquid.xyz` im Browser aufruft:
+**1 · Ranks.** The leaderboard loads on start. Switch the timeframe with
+**24H / 7D / 30D / ALL TIME** — traders are always ranked by profit over the
+window you picked. Search filters by wallet address.
 
-| Was | Quelle |
+**2 · Click a trader.** You get their live state:
+
+* **Open positions** — asset, long or short, size, entry price, position
+  value, leverage, unrealised PnL, liquidation price.
+* **Recent fills** — when, which asset, bought or sold, at what price, in what
+  size, and what they realised. This is the "what did they just buy" view.
+* **REFRESH** pulls it again.
+
+**3 · `⚡ COPY NOW`.** Enter your capital, pick a risk tier:
+
+| Tier | Exposure | Stop | Max leverage |
+| --- | --- | --- | --- |
+| SAFE | 50 % of capital | 5 % | 2x |
+| BALANCED | 100 % | 8 % | 3x |
+| DEGEN | 150 % | 12 % | 5x |
+
+The app scales their positions down onto your account and writes out, per
+position:
+
+* buy or sell, long or short,
+* the **quantity** to trade at the current mark price,
+* notional, suggested leverage and the margin it needs,
+* a concrete **stop loss** and **take profit** price,
+* what you lose if that stop is hit,
+* and how their own position is doing.
+
+Below that: totals, and your worst case if every stop triggers at once.
+Copy it to the clipboard or save it as a text file.
+
+---
+
+## Where the data comes from
+
+The app calls exactly the public endpoints that `app.hyperliquid.xyz` itself
+calls from the browser:
+
+| What | Source |
 | --- | --- |
-| Rangliste der Trader | `stats-data.hyperliquid.xyz/Mainnet/leaderboard` |
-| Offene Positionen | `api.hyperliquid.xyz/info` → `clearinghouseState` |
-| Ausgefuehrte Trades | `api.hyperliquid.xyz/info` → `userFills` |
-| Marktpreise | `api.hyperliquid.xyz/info` → `allMids` |
+| Trader ranking | `stats-data.hyperliquid.xyz/Mainnet/leaderboard` |
+| Open positions | `api.hyperliquid.xyz/info` → `clearinghouseState` |
+| Executed trades | `api.hyperliquid.xyz/info` → `userFills` |
+| Mark prices | `api.hyperliquid.xyz/info` → `allMids` |
 
-Warum Hyperliquid: es ist die einzige grosse Boerse, bei der jede Position
-jedes Traders oeffentlich on-chain einsehbar ist. Bei Binance oder Coinbase
-sieht man fremde Positionen nicht.
+Why Hyperliquid: it is the one large exchange where every trader's position is
+publicly visible on-chain. On Binance or Coinbase you cannot see anyone else's
+book.
 
-Die Rangliste ist eine grosse Datei. Sie wird nach dem ersten Laden unter
-`~/.whaletracker/leaderboard.json` zwischengespeichert und erst nach 6 Stunden
-oder auf Knopfdruck ("RANGLISTE NEU LADEN") neu geholt. Die Positionen und
-Trades eines einzelnen Traders sind dagegen klein und immer live.
+The ranking is a large file. It is cached at `~/.whaletracker/leaderboard.json`
+after the first load and only refetched after 6 hours, or when you press
+**REFRESH RANKS**. Positions and fills for a single trader are small and always
+live.
 
 ---
 
@@ -96,27 +126,31 @@ Trades eines einzelnen Traders sind dagegen klein und immer live.
 python3 test_copyplan.py
 ```
 
-15 Tests fuer das Auswerten der Antworten und fuer die Plan-Rechnung
-(Richtung, Gewichtung, Stops, Hebelgrenze, Rundung, leere Eingaben).
-Kein Netz noetig.
+15 tests covering response parsing and the plan maths — direction, weighting,
+stops, the leverage cap, rounding, and empty input. No network needed.
 
 ---
 
-## Dateien
+## Files
 
-| Datei | Inhalt |
+| File | Contents |
 | --- | --- |
-| `whaletracker.py` | Programm und Oberflaeche |
-| `hyperliquid_source.py` | Datenabruf und Auswertung |
-| `copyplan.py` | Rechenlogik fuer den Copy-Plan |
-| `test_copyplan.py` | Tests |
+| `whaletracker.py` | app and screens |
+| `widgets.py` | the custom neon canvas widgets |
+| `theme.py` | colours, fonts, number formatting |
+| `hyperliquid_source.py` | fetching and parsing |
+| `copyplan.py` | the plan maths |
+| `test_copyplan.py` | tests |
+| `find_python.sh` | picks an interpreter whose Tk actually opens a window |
+| `make_icon.py` | regenerates the app icon |
+| `build_app.sh` | builds the standalone .app |
 
 ---
 
-## Wichtig
+## Important
 
-Das Programm **fuehrt keine Orders aus** und ist mit keinem Broker verbunden.
-Es liest oeffentliche Daten und rechnet daraus einen Vorschlag, den man selbst
-umsetzen muesste. Der Trader, den man kopiert, kann jederzeit aussteigen, ohne
-dass man es mitbekommt, und er handelt mit einem Vielfachen des eigenen
-Kapitals. Keine Anlageberatung.
+This program **places no orders** and is connected to no broker. It reads
+public data and does arithmetic on it; acting on the result is entirely on
+you. The trader you mirror can close out at any moment without you noticing,
+and they trade with many times your capital — their tolerance for a drawdown
+is not yours. Not financial advice.

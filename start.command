@@ -1,26 +1,35 @@
 #!/bin/bash
-# macOS: Doppelklick auf diese Datei startet das Programm.
-cd "$(dirname "$0")"
+# macOS: double-click to run Whale Tracker from the Terminal.
+# For the nicer route, double-click WhaleTracker.app instead.
+cd "$(dirname "$0")" || exit 1
+. ./find_python.sh
 
-PY=""
-for CANDIDATE in python3 python3.12 python3.11 python; do
-  if command -v "$CANDIDATE" >/dev/null 2>&1; then PY="$CANDIDATE"; break; fi
-done
-
+PY="$(find_working_python)"
 if [ -z "$PY" ]; then
-  echo ""
-  echo "Python 3 wurde nicht gefunden."
-  echo "Bitte von https://www.python.org/downloads/ installieren und erneut starten."
-  echo ""
-  read -r -p "Enter zum Schliessen..."
-  exit 1
+    cat <<'MSG'
+
+No usable Python found on this Mac.
+
+Every Python here either has no tkinter, or ships a Tk that demands a newer
+macOS - that is the "macOS 15 (1507) or later required" abort.
+
+Two ways to fix it:
+
+  1. Update macOS      System Settings > General > Software Update
+  2. Install Python 3.12 from python.org - its Tk runs on older macOS:
+     https://www.python.org/downloads/release/python-3128/
+
+MSG
+    read -r -p "Press Enter to close..."
+    exit 1
 fi
 
+echo "Using $PY"
 "$PY" whaletracker.py
 CODE=$?
 if [ $CODE -ne 0 ]; then
-  echo ""
-  echo "Das Programm wurde mit Fehler $CODE beendet (siehe Meldung oben)."
-  read -r -p "Enter zum Schliessen..."
+    echo ""
+    echo "Whale Tracker exited with error $CODE (see the message above)."
+    read -r -p "Press Enter to close..."
 fi
 exit $CODE

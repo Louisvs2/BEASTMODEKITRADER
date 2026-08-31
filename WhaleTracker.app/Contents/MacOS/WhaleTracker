@@ -1,0 +1,38 @@
+#!/bin/bash
+# Launcher inside the .app bundle.
+#
+# It walks a list of Python interpreters and picks the FIRST one that can
+# actually open a Tk window. That check has to run in a throwaway subprocess:
+# a Tk built against a newer macOS aborts the whole process on import, which
+# no try/except can catch.
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+APP_ROOT="$(cd "$HERE/../../.." && pwd)"   # folder containing WhaleTracker.app
+CODE="$APP_ROOT"
+[ -f "$CODE/whaletracker.py" ] || CODE="$HERE/../Resources/app"
+
+. "$CODE/find_python.sh" 2>/dev/null || {
+    osascript -e 'display dialog "Whale Tracker is missing its program files. Keep WhaleTracker.app in the same folder as whaletracker.py." with title "Whale Tracker" buttons {"OK"} default button 1 with icon stop'
+    exit 1
+}
+
+PICKED="$(find_working_python)"
+
+if [ -z "$PICKED" ]; then
+    osascript <<'APPLESCRIPT'
+display dialog "Whale Tracker could not find a working Python.
+
+Every Python on this Mac either has no tkinter, or ships a Tk that needs a newer macOS (the \"macOS 15 (1507) or later required\" error).
+
+Two ways to fix it:
+
+1. Update macOS   (System Settings > General > Software Update)
+2. Install Python 3.12 from python.org - its Tk works on older macOS.
+
+Then open Whale Tracker again." with title "Whale Tracker" buttons {"OK"} default button 1 with icon caution
+APPLESCRIPT
+    exit 1
+fi
+
+cd "$CODE" || exit 1
+exec "$PICKED" whaletracker.py

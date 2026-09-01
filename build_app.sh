@@ -10,7 +10,16 @@
 
 set -e
 cd "$(dirname "$0")"
-. ./find_python.sh
+
+find_working_python() {
+    _can_run() { "$1" -c 'import tkinter; tkinter.Tk().destroy()' >/dev/null 2>&1; }
+    for _c in /Library/Frameworks/Python.framework/Versions/3.1{3,2,1,0}/bin/python3 \
+              /opt/homebrew/bin/python3.1{3,2,1} /usr/local/bin/python3.1{3,2,1} \
+              python3.13 python3.12 python3.11 python3 /usr/bin/python3; do
+        if command -v "$_c" >/dev/null 2>&1 && _can_run "$_c"; then echo "$_c"; return 0; fi
+    done
+    return 1
+}
 
 PY="$(find_working_python)"
 if [ -z "$PY" ]; then

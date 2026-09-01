@@ -21,6 +21,12 @@ Apple. Right-click `WhaleTracker.app` → **Open** → **Open**. Once only.
 
 Prefer the Terminal? `./start.command`, or `python3 whaletracker.py`.
 
+### If it will not start
+
+Double-click **`check_mac.command`**. It prints every Python on this Mac, says
+which of them can open a window, and why the others cannot. That output
+answers the question in one glance.
+
 ### If it says no Python was found
 
 You need a Python whose Tk actually works on your macOS version. The newest
@@ -141,7 +147,7 @@ stops, the leverage cap, rounding, and empty input. No network needed.
 | `hyperliquid_source.py` | fetching and parsing |
 | `copyplan.py` | the plan maths |
 | `test_copyplan.py` | tests |
-| `find_python.sh` | picks an interpreter whose Tk actually opens a window |
+| `check_mac.command` | double-click: lists every Python here and which one works |
 | `make_icon.py` | regenerates the app icon |
 | `build_app.sh` | builds the standalone .app |
 

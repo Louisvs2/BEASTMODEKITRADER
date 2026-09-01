@@ -1,36 +1,79 @@
 #!/bin/bash
 # Launcher inside the .app bundle.
 #
-# It walks a list of Python interpreters and picks the FIRST one that can
-# actually open a Tk window. That check has to run in a throwaway subprocess:
-# a Tk built against a newer macOS aborts the whole process on import, which
-# no try/except can catch.
+# Deliberately self-contained: it sources no other file, so a missing or
+# unreadable helper can never stop the app from starting. Every failure path
+# reports the exact paths it inspected, so a problem can be diagnosed from
+# the dialog alone.
+#
+# Why the Python probe runs in a subprocess: a Tk built against a newer macOS
+# SDK calls abort() on import ("macOS 15 (1507) or later required"), killing
+# the process outright. No try/except inside Python can catch that, so each
+# candidate has to be tested from the outside.
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-APP_ROOT="$(cd "$HERE/../../.." && pwd)"   # folder containing WhaleTracker.app
-CODE="$APP_ROOT"
-[ -f "$CODE/whaletracker.py" ] || CODE="$HERE/../Resources/app"
 
-. "$CODE/find_python.sh" 2>/dev/null || {
-    osascript -e 'display dialog "Whale Tracker is missing its program files. Keep WhaleTracker.app in the same folder as whaletracker.py." with title "Whale Tracker" buttons {"OK"} default button 1 with icon stop'
+# Look for the code next to the .app first, then inside it (PyInstaller-style
+# layouts and copies that were moved on their own).
+CODE=""
+for candidate in \
+    "$HERE/../../.." \
+    "$HERE/../Resources/app" \
+    "$HERE/../Resources" \
+    "$HOME/Desktop/BEASTMODEKITRADER" \
+    "$HOME/BEASTMODEKITRADER"
+do
+    if [ -f "$candidate/whaletracker.py" ]; then
+        CODE="$(cd "$candidate" && pwd)"
+        break
+    fi
+done
+
+if [ -z "$CODE" ]; then
+    osascript -e "display dialog \"Whale Tracker cannot find whaletracker.py.
+
+Looked next to the app in:
+$(cd "$HERE/../../.." 2>/dev/null && pwd)
+
+Keep WhaleTracker.app in the same folder as whaletracker.py.\" with title \"Whale Tracker\" buttons {\"OK\"} default button 1 with icon stop"
     exit 1
+fi
+
+can_run() {
+    "$1" -c 'import tkinter; tkinter.Tk().destroy()' >/dev/null 2>&1
 }
 
-PICKED="$(find_working_python)"
+CANDIDATES=""
+for v in 3.13 3.12 3.11 3.10 3.9; do
+    CANDIDATES="$CANDIDATES /Library/Frameworks/Python.framework/Versions/$v/bin/python3"
+    CANDIDATES="$CANDIDATES /opt/homebrew/bin/python$v /usr/local/bin/python$v python$v"
+done
+CANDIDATES="$CANDIDATES /opt/homebrew/bin/python3 /usr/local/bin/python3 python3 /usr/bin/python3"
+
+PICKED=""
+CHECKED=""
+for candidate in $CANDIDATES; do
+    command -v "$candidate" >/dev/null 2>&1 || continue
+    resolved="$(command -v "$candidate")"
+    if can_run "$candidate"; then
+        PICKED="$candidate"
+        break
+    fi
+    CHECKED="$CHECKED
+  · $resolved — no usable Tk"
+done
 
 if [ -z "$PICKED" ]; then
-    osascript <<'APPLESCRIPT'
-display dialog "Whale Tracker could not find a working Python.
+    [ -n "$CHECKED" ] || CHECKED="
+  (no Python found at all)"
+    osascript -e "display dialog \"Whale Tracker found no Python that can open a window.
 
-Every Python on this Mac either has no tkinter, or ships a Tk that needs a newer macOS (the \"macOS 15 (1507) or later required\" error).
+Checked:$CHECKED
 
-Two ways to fix it:
+Fix it either way:
 
-1. Update macOS   (System Settings > General > Software Update)
-2. Install Python 3.12 from python.org - its Tk works on older macOS.
-
-Then open Whale Tracker again." with title "Whale Tracker" buttons {"OK"} default button 1 with icon caution
-APPLESCRIPT
+1. Install Python 3.12 from python.org — its Tk works on older macOS.
+2. Or update macOS: System Settings > General > Software Update.\" with title \"Whale Tracker\" buttons {\"OK\"} default button 1 with icon caution"
     exit 1
 fi
 

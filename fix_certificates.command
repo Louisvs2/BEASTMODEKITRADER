@@ -1,5 +1,5 @@
 #!/bin/bash
-# Double-click this once if Whale Tracker reports
+# Double-click this once if BEASTMODE AI TOOL reports
 #   [SSL: CERTIFICATE_VERIFY_FAILED] unable to get local issuer certificate
 #
 # Python installed from python.org does not register the system root
@@ -35,7 +35,7 @@ PYCHECK
 }
 
 echo ""
-echo "Whale Tracker - certificate repair"
+echo "BEASTMODE AI TOOL - certificate repair"
 echo "=================================="
 
 PY="$(find_working_python)"
@@ -49,7 +49,7 @@ echo "Python: $PY"
 if tls_ok "$PY"; then
     echo ""
     echo "Certificates already work - nothing to repair."
-    echo "If Whale Tracker still cannot connect, the problem is elsewhere."
+    echo "If BEASTMODE AI TOOL still cannot connect, the problem is elsewhere."
     read -r -p "Press Enter to close..."
     exit 0
 fi
@@ -69,7 +69,7 @@ done
 [ $RAN_OFFICIAL -eq 1 ] || echo "No 'Install Certificates.command' found in /Applications."
 
 if tls_ok "$PY"; then
-    echo "Fixed. HTTPS works now - start WhaleTracker.app."
+    echo "Fixed. HTTPS works now - start BEASTMODE AI TOOL.app."
     read -r -p "Press Enter to close..."
     exit 0
 fi
@@ -85,7 +85,7 @@ echo "Installing the certifi certificate bundle ..."
 echo ""
 
 if tls_ok "$PY"; then
-    echo "Fixed. HTTPS works now - start WhaleTracker.app."
+    echo "Fixed. HTTPS works now - start BEASTMODE AI TOOL.app."
 else
     echo "Still failing."
     echo ""

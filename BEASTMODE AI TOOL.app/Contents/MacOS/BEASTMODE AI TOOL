@@ -23,19 +23,19 @@ for candidate in \
     "$HOME/Desktop/BEASTMODEKITRADER" \
     "$HOME/BEASTMODEKITRADER"
 do
-    if [ -f "$candidate/whaletracker.py" ]; then
+    if [ -f "$candidate/beastmode.py" ]; then
         CODE="$(cd "$candidate" && pwd)"
         break
     fi
 done
 
 if [ -z "$CODE" ]; then
-    osascript -e "display dialog \"Whale Tracker cannot find whaletracker.py.
+    osascript -e "display dialog \"BEASTMODE AI TOOL cannot find beastmode.py.
 
 Looked next to the app in:
 $(cd "$HERE/../../.." 2>/dev/null && pwd)
 
-Keep WhaleTracker.app in the same folder as whaletracker.py.\" with title \"Whale Tracker\" buttons {\"OK\"} default button 1 with icon stop"
+Keep BEASTMODE AI TOOL.app in the same folder as beastmode.py.\" with title \"BEASTMODE AI TOOL\" buttons {\"OK\"} default button 1 with icon stop"
     exit 1
 fi
 
@@ -66,16 +66,16 @@ done
 if [ -z "$PICKED" ]; then
     [ -n "$CHECKED" ] || CHECKED="
   (no Python found at all)"
-    osascript -e "display dialog \"Whale Tracker found no Python that can open a window.
+    osascript -e "display dialog \"BEASTMODE AI TOOL found no Python that can open a window.
 
 Checked:$CHECKED
 
 Fix it either way:
 
 1. Install Python 3.12 from python.org — its Tk works on older macOS.
-2. Or update macOS: System Settings > General > Software Update.\" with title \"Whale Tracker\" buttons {\"OK\"} default button 1 with icon caution"
+2. Or update macOS: System Settings > General > Software Update.\" with title \"BEASTMODE AI TOOL\" buttons {\"OK\"} default button 1 with icon caution"
     exit 1
 fi
 
 cd "$CODE" || exit 1
-exec "$PICKED" whaletracker.py
+exec "$PICKED" beastmode.py

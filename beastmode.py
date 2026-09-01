@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-WHALE TRACKER  -  desktop app for macOS, Windows and Linux.
+BEASTMODE AI TOOL  -  desktop app for macOS, Windows and Linux.
 
 Shows Hyperliquid's public trader leaderboard, each trader's LIVE open
 positions and their most recent executed trades, and turns those real
 positions into a concrete copy plan sized for your own capital.
 
-Run:  python3 whaletracker.py
+Run:  python3 beastmode.py
 Standard library only - nothing to install.
 """
 
@@ -49,7 +49,7 @@ def when(ms):
 class App(tk.Tk):
     def __init__(self):
         tk.Tk.__init__(self)
-        self.title("Whale Tracker")
+        self.title("BEASTMODE AI TOOL")
         self.geometry("1240x820")
         self.minsize(960, 640)
         self.configure(bg=T.VOID)
@@ -101,15 +101,17 @@ class App(tk.Tk):
 
         left = tk.Frame(bar, bg=T.DEEP)
         left.pack(side="left", padx=20)
-        logo = tk.Canvas(left, width=310, height=52, bg=T.DEEP,
-                         highlightthickness=0, bd=0)
+        # sized from the drawn text below, so a longer product name cannot be
+        # clipped the way a hard-coded width would clip it
+        logo = tk.Canvas(left, height=52, bg=T.DEEP, highlightthickness=0, bd=0)
         logo.pack(pady=10)
-        first = logo.create_text(0, 18, text="WHALE", anchor="w",
+        first = logo.create_text(0, 18, text="BEASTMODE", anchor="w",
                                  fill=T.TEXT, font=T.display(23))
-        logo.create_text(logo.bbox(first)[2] + 8, 18, text="TRACKER", anchor="w",
-                         fill=T.CYAN, font=T.display(23))
-        logo.create_text(2, 40, text="LIVE COPY-TRADING INTEL  ·  HYPERLIQUID",
-                         anchor="w", fill=T.FAINT, font=T.display(9))
+        second = logo.create_text(logo.bbox(first)[2] + 9, 18, text="AI TOOL",
+                                  anchor="w", fill=T.CYAN, font=T.display(23))
+        tail = logo.create_text(2, 40, text="LIVE COPY-TRADING INTEL  ·  HYPERLIQUID",
+                                anchor="w", fill=T.FAINT, font=T.display(9))
+        logo.configure(width=max(logo.bbox(second)[2], logo.bbox(tail)[2]) + 6)
 
         right = tk.Frame(bar, bg=T.DEEP)
         right.pack(side="right", padx=20)
@@ -214,7 +216,7 @@ class App(tk.Tk):
                     "cannot verify any HTTPS connection and no data can be "
                     "loaded.\n\n"
                     "Fix it once: double-click fix_certificates.command in the "
-                    "Whale Tracker folder, then start the app again.")
+                    "BEASTMODE AI TOOL folder, then start the app again.")
 
         self.run_bg(work, done, failed)
 

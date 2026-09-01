@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generates WhaleTracker.app/Contents/Resources/AppIcon.icns.
+Generates BEASTMODE AI TOOL.app/Contents/Resources/AppIcon.icns.
 
 Only needed when the icon should change - the .icns is committed, so a normal
 checkout already has it. Requires Pillow:  pip install pillow
@@ -10,7 +10,7 @@ import struct
 
 from PIL import Image, ImageDraw
 
-OUT = os.path.join("WhaleTracker.app", "Contents", "Resources", "AppIcon.icns")
+OUT = os.path.join("BEASTMODE AI TOOL.app", "Contents", "Resources", "AppIcon.icns")
 
 BG = (13, 13, 26, 255)
 EDGE = (42, 42, 77, 255)

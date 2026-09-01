@@ -106,7 +106,7 @@ def start():
     src.CACHE_DIR = tmp
     src.CACHE_FILE = os.path.join(tmp, "lb.json")
 
-    import whaletracker as wt
+    import beastmode as wt
     wt.messagebox = FakeBox
     app = wt.App()
     return app, wt, server, tmp

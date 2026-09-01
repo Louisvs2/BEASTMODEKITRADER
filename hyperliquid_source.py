@@ -30,12 +30,12 @@ INFO_URL = "https://api.hyperliquid.xyz/info"
 LEADERBOARD_URL = "https://stats-data.hyperliquid.xyz/Mainnet/leaderboard"
 WEB_LEADERBOARD = "https://app.hyperliquid.xyz/leaderboard"
 
-USER_AGENT = "WhaleTracker/1.0 (+desktop; stdlib-urllib)"
+USER_AGENT = "BEASTMODE AI TOOL/1.0 (+desktop; stdlib-urllib)"
 TIMEOUT = 45
 
 # The ranking is a large file. It is cached on disk and only refetched on
 # demand, or once it is older than CACHE_MAX_AGE.
-CACHE_DIR = os.path.join(os.path.expanduser("~"), ".whaletracker")
+CACHE_DIR = os.path.join(os.path.expanduser("~"), ".beastmode")
 CACHE_FILE = os.path.join(CACHE_DIR, "leaderboard.json")
 CACHE_MAX_AGE = 60 * 60 * 6  # 6 hours
 MAX_LEADERBOARD_BYTES = 400 * 1024 * 1024

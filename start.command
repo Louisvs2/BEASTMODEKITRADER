@@ -1,6 +1,6 @@
 #!/bin/bash
-# macOS: double-click to run Whale Tracker from a Terminal window.
-# For the nicer route, double-click WhaleTracker.app instead.
+# macOS: double-click to run BEASTMODE AI TOOL from a Terminal window.
+# For the nicer route, double-click BEASTMODE AI TOOL.app instead.
 cd "$(dirname "$0")" || exit 1
 
 # A Tk built for a newer macOS aborts the process on import, so each candidate
@@ -40,11 +40,11 @@ MSG
 fi
 
 echo "Using $PY"
-"$PY" whaletracker.py
+"$PY" beastmode.py
 CODE=$?
 if [ $CODE -ne 0 ]; then
     echo ""
-    echo "Whale Tracker exited with error $CODE (see the message above)."
+    echo "BEASTMODE AI TOOL exited with error $CODE (see the message above)."
     read -r -p "Press Enter to close..."
 fi
 exit $CODE

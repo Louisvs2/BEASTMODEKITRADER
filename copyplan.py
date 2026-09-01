@@ -174,7 +174,7 @@ def plan_as_text(plan, trader_address, trader_name="", account_value=0.0):
     """The plan as plain text - exactly what lands on the clipboard."""
     lines = []
     lines.append("=" * 68)
-    lines.append("COPY PLAN  ·  WHALE TRACKER")
+    lines.append("COPY PLAN  ·  BEASTMODE AI TOOL")
     lines.append("=" * 68)
     lines.append("Trader        : %s%s" % (trader_address,
                                            (" (%s)" % trader_name) if trader_name else ""))

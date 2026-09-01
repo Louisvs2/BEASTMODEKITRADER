@@ -1,4 +1,4 @@
-# WHALE TRACKER
+# BEASTMODE AI TOOL
 
 A desktop app that shows Hyperliquid's public trader leaderboard, each
 trader's **live open positions**, their **most recent trades** — and turns
@@ -11,15 +11,15 @@ beyond Python itself.
 
 ## Run it on a Mac
 
-**Double-click `WhaleTracker.app`.**
+**Double-click `BEASTMODE AI TOOL.app`.**
 
 That is the whole thing. The bundle finds a usable Python on your Mac by
 itself and starts the app. If none exists it tells you exactly what to install.
 
 First launch may show a Gatekeeper warning, because the app is not signed by
-Apple. Right-click `WhaleTracker.app` → **Open** → **Open**. Once only.
+Apple. Right-click `BEASTMODE AI TOOL.app` → **Open** → **Open**. Once only.
 
-Prefer the Terminal? `./start.command`, or `python3 whaletracker.py`.
+Prefer the Terminal? `./start.command`, or `python3 beastmode.py`.
 
 ### If it starts but loads nothing
 
@@ -66,14 +66,27 @@ Check it in one line:
 python3.12 -c "import tkinter; tkinter.Tk(); print('window works')"
 ```
 
-### An app that needs no Python at all
+### Building the version you sell
 
 ```
-./build_app.sh
+./build_release.sh
 ```
 
-Bundles Python and Tk into `dist/WhaleTracker.app` via PyInstaller. Drag that
-into `/Applications` and it runs anywhere, even on a Mac with no Python.
+Must run on a Mac. It bundles Python and Tk into `dist/BEASTMODE AI TOOL.app`
+and packs it into `dist/BEASTMODE AI TOOL.dmg` — the file to put on your
+website. A buyer needs nothing installed.
+
+Set two variables first and the build is also signed, notarised and stapled,
+which is what stops macOS warning your buyers:
+
+```
+export CODESIGN_ID="Developer ID Application: Your Name (TEAMID)"
+export NOTARY_PROFILE="beastmode"
+```
+
+Without them the build still works, but buyers must allow the app once under
+System Settings → Privacy & Security. That path is documented in
+`BEASTMODE_AI_TOOL_Tutorial.pdf`, the guide to ship alongside the download.
 
 ## Windows and Linux
 
@@ -135,7 +148,7 @@ Why Hyperliquid: it is the one large exchange where every trader's position is
 publicly visible on-chain. On Binance or Coinbase you cannot see anyone else's
 book.
 
-The ranking is a large file. It is cached at `~/.whaletracker/leaderboard.json`
+The ranking is a large file. It is cached at `~/.beastmode/leaderboard.json`
 after the first load and only refetched after 6 hours, or when you press
 **REFRESH RANKS**. Positions and fills for a single trader are small and always
 live.
@@ -167,7 +180,7 @@ cd tests_manual && xvfb-run python3 stress_b.py
 
 | File | Contents |
 | --- | --- |
-| `whaletracker.py` | app and screens |
+| `beastmode.py` | app and screens |
 | `widgets.py` | the custom neon canvas widgets |
 | `theme.py` | colours, fonts, number formatting |
 | `hyperliquid_source.py` | fetching and parsing |
@@ -178,7 +191,8 @@ cd tests_manual && xvfb-run python3 stress_b.py
 | `check_mac.command` | double-click: lists every Python here and which one works |
 | `fix_certificates.command` | double-click: repairs the HTTPS certificate store |
 | `make_icon.py` | regenerates the app icon |
-| `build_app.sh` | builds the standalone .app |
+| `make_tutorial.py` | regenerates the customer tutorial PDF |
+| `build_release.sh` | builds the sellable .app and .dmg |
 
 ---
 

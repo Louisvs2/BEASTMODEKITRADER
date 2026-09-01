@@ -3,10 +3,10 @@
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key>            <string>Whale Tracker</string>
-    <key>CFBundleDisplayName</key>     <string>Whale Tracker</string>
-    <key>CFBundleExecutable</key>      <string>WhaleTracker</string>
-    <key>CFBundleIdentifier</key>      <string>com.whaletracker.app</string>
+    <key>CFBundleName</key>            <string>BEASTMODE AI TOOL</string>
+    <key>CFBundleDisplayName</key>     <string>BEASTMODE AI TOOL</string>
+    <key>CFBundleExecutable</key>      <string>BEASTMODE AI TOOL</string>
+    <key>CFBundleIdentifier</key>      <string>com.beastmode.aitool</string>
     <key>CFBundleIconFile</key>        <string>AppIcon</string>
     <key>CFBundleVersion</key>         <string>2.0</string>
     <key>CFBundleShortVersionString</key><string>2.0</string>

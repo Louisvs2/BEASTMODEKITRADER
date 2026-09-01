@@ -17,13 +17,13 @@ find_working_python() {
 }
 
 echo ""
-echo "Whale Tracker - environment check"
+echo "BEASTMODE AI TOOL - environment check"
 echo "================================="
 echo "macOS : $(sw_vers -productVersion 2>/dev/null || uname -sr)"
 echo "Folder: $(pwd)"
 echo ""
 echo "Program files:"
-for f in whaletracker.py theme.py widgets.py copyplan.py hyperliquid_source.py; do
+for f in beastmode.py theme.py widgets.py copyplan.py hyperliquid_source.py; do
     if [ -f "$f" ]; then echo "  ok      $f"; else echo "  MISSING $f"; fi
 done
 echo ""
@@ -55,7 +55,7 @@ done
 echo ""
 PICKED="$(find_working_python)"
 if [ -n "$PICKED" ]; then
-    echo "=> Whale Tracker will use: $PICKED"
+    echo "=> BEASTMODE AI TOOL will use: $PICKED"
     printf "   HTTPS: "
     if "$PICKED" -c 'import urllib.request; urllib.request.urlopen("https://api.hyperliquid.xyz/info", data=b"{\"type\":\"allMids\"}", timeout=20)' >/dev/null 2>&1; then
         echo "ok"

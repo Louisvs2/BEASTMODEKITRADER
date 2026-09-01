@@ -20,7 +20,7 @@ Wenn der Nutzer etwas tun soll, gilt ohne Ausnahme:
 Falsch:
 
 > Zieh dir erst mit git pull die neue Version, dann kannst du im Finder auf
-> WhaleTracker.app doppelklicken, aber beim ersten Mal musst du Rechtsklick
+> BEASTMODE AI TOOL.app doppelklicken, aber beim ersten Mal musst du Rechtsklick
 > machen wegen Gatekeeper.
 
 Richtig:
@@ -30,7 +30,7 @@ Richtig:
 >    ```
 >    cd ~/Desktop/BEASTMODEKITRADER && git pull
 >    ```
-> 3. Im Finder auf `WhaleTracker.app` doppelklicken
+> 3. Im Finder auf `BEASTMODE AI TOOL.app` doppelklicken
 >    → Beim allerersten Mal stattdessen: Rechtsklick → „Öffnen" → „Öffnen"
 >
 > Warum der Rechtsklick: die App ist nicht von Apple signiert.
@@ -40,19 +40,19 @@ Wenn es Fehlerfälle gibt, kommen die als eigener Block **danach**:
 
 ## Das Projekt
 
-Whale Tracker: Desktop-App (macOS/Windows/Linux), zeigt die öffentliche
+BEASTMODE AI TOOL: Desktop-App (macOS/Windows/Linux), zeigt die öffentliche
 Trader-Rangliste von Hyperliquid, deren Live-Positionen und letzte Trades, und
 rechnet daraus einen Copy-Plan für das Kapital des Nutzers.
 
 - Nur Standardbibliothek, keine Abhängigkeiten. Das bleibt so.
 - Der Nutzer ist auf einem **Mac**. Startet per Doppelklick auf
-  `WhaleTracker.app`, nicht über das Terminal.
+  `BEASTMODE AI TOOL.app`, nicht über das Terminal.
 - Der Nutzer ist kein Entwickler. Keine Fachbegriffe ohne Erklärung.
 
 ### Starten
 
 ```
-python3 whaletracker.py
+python3 beastmode.py
 ```
 
 ### Tests
@@ -63,6 +63,14 @@ python3 test_integration.py                     # gegen lokalen Server
 python3 tests_manual/property_test.py           # Zufallsdaten
 cd tests_manual && xvfb-run python3 stress_a.py # GUI-Härtetest
 cd tests_manual && xvfb-run python3 stress_b.py
+cd tests_manual && xvfb-run python3 stress_c.py # jedes Bedienelement
+```
+
+### Verkaufsversion und Handbuch
+
+```
+./build_release.sh        # nur auf einem Mac: baut .app und .dmg
+python3 make_tutorial.py  # baut BEASTMODE_AI_TOOL_Tutorial.pdf neu
 ```
 
 ## Was hier gilt
@@ -73,4 +81,6 @@ cd tests_manual && xvfb-run python3 stress_b.py
   und gefälschte Kursdaten ermöglichen.
 - **Diese Umgebung hat kein Internet.** Der echte Abruf gegen Hyperliquid ist
   hier nicht testbar — das dem Nutzer sagen, statt Erfolg zu behaupten.
+- Das Produkt heißt **BEASTMODE AI TOOL** und wird verkauft: Fehler in
+  Zahlen oder Anleitungen treffen zahlende Kunden.
 - **Entwickelt wird auf** `claude/trading-tool-asset-tracking-47nwwv`.

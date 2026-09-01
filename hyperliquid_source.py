@@ -17,6 +17,7 @@ Everything goes through urllib from the standard library - nothing to install.
 """
 
 import gzip
+import heapq
 import io
 import json
 import os
@@ -128,7 +129,10 @@ def post_info(payload):
         method="POST",
     )
     resp = _open(req)
-    text = _decode_body(resp, resp.read())
+    try:
+        text = _decode_body(resp, resp.read())
+    finally:
+        resp.close()   # a long-running window would otherwise leak sockets
     try:
         return json.loads(text)
     except ValueError:
@@ -146,42 +150,126 @@ def _num(value, default=0.0):
         return default
 
 
-def parse_leaderboard(data):
-    """Raw response -> list of plain trader dicts, sorted by 30-day PnL."""
-    rows = data.get("leaderboardRows") if isinstance(data, dict) else data
-    if not isinstance(rows, list):
+def _slim_row(row):
+    """One leaderboard row -> the small dict the UI works with, or None."""
+    if not isinstance(row, dict):
+        return None
+    address = row.get("ethAddress") or row.get("user") or ""
+    if not address:
+        return None
+    perf = {}
+    for entry in row.get("windowPerformances") or []:
+        # shape: ["day", {"pnl": "...", "roi": "...", "vlm": "..."}]
+        if isinstance(entry, (list, tuple)) and len(entry) == 2 and isinstance(entry[1], dict):
+            perf[entry[0]] = {
+                "pnl": _num(entry[1].get("pnl")),
+                "roi": _num(entry[1].get("roi")),
+                "vlm": _num(entry[1].get("vlm")),
+            }
+    for window in WINDOWS:
+        perf.setdefault(window, {"pnl": 0.0, "roi": 0.0, "vlm": 0.0})
+
+    return {
+        "address": address,
+        "name": row.get("displayName") or "",
+        "accountValue": _num(row.get("accountValue")),
+        "perf": perf,
+    }
+
+
+def iter_leaderboard_rows(text):
+    """
+    Yield the rows one at a time instead of building the whole object graph.
+
+    The real leaderboard decodes to well over a hundred thousand rows; handing
+    all of that to json.loads costs several hundred MB of Python objects, most
+    of which is thrown away immediately. Decoding row by row keeps the peak
+    down to the text itself.
+    """
+    marker = '"leaderboardRows"'
+    start = text.find(marker)
+    if start < 0:
+        # not the documented shape - fall back to an ordinary parse
+        data = json.loads(text)
+        rows = data.get("leaderboardRows") if isinstance(data, dict) else data
+        for row in rows or []:
+            yield row
+        return
+
+    try:
+        index = text.index("[", start + len(marker)) + 1
+    except ValueError:
         raise SourceError("Unexpected leaderboard format.")
 
-    traders = []
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        addr = row.get("ethAddress") or row.get("user") or ""
-        if not addr:
-            continue
-        perf = {}
-        for entry in row.get("windowPerformances") or []:
-            # shape: ["day", {"pnl": "...", "roi": "...", "vlm": "..."}]
-            if isinstance(entry, (list, tuple)) and len(entry) == 2 and isinstance(entry[1], dict):
-                perf[entry[0]] = {
-                    "pnl": _num(entry[1].get("pnl")),
-                    "roi": _num(entry[1].get("roi")),
-                    "vlm": _num(entry[1].get("vlm")),
-                }
-        for win in WINDOWS:
-            perf.setdefault(win, {"pnl": 0.0, "roi": 0.0, "vlm": 0.0})
+    decoder = json.JSONDecoder()
+    length = len(text)
+    while True:
+        while index < length and text[index] in " \t\r\n,":
+            index += 1
+        if index >= length or text[index] == "]":
+            return
+        try:
+            row, index = decoder.raw_decode(text, index)
+        except ValueError:
+            raise SourceError("Leaderboard row could not be read.")
+        yield row
 
-        traders.append({
-            "address": addr,
-            "name": row.get("displayName") or "",
-            "accountValue": _num(row.get("accountValue")),
-            "perf": perf,
-        })
 
+def top_traders(rows, limit=250):
+    """
+    The best `limit` traders for EVERY timeframe, not just one.
+
+    Ranking by 30-day profit and then re-sorting that slice would make the
+    24H, 7D and ALL TIME views lie: a trader who leads the day but sits
+    outside the monthly top 250 would never appear. So one bounded heap per
+    window is kept and the union is returned.
+    """
+    heaps = {window: [] for window in WINDOWS}
+    keep = {}
+
+    def prune():
+        alive = set()
+        for window in WINDOWS:
+            alive.update(address for _pnl, address in heaps[window])
+        for address in [a for a in keep if a not in alive]:
+            del keep[address]
+
+    seen = 0
+    for raw in rows:
+        trader = _slim_row(raw)
+        if trader is None:
+            continue
+        address = trader["address"]
+        wanted = False
+        for window in WINDOWS:
+            pnl = trader["perf"][window]["pnl"]
+            heap = heaps[window]
+            if len(heap) < limit:
+                heapq.heappush(heap, (pnl, address))
+                wanted = True
+            elif pnl > heap[0][0]:
+                heapq.heapreplace(heap, (pnl, address))
+                wanted = True
+        if wanted:
+            keep[address] = trader
+        seen += 1
+        if seen % 20000 == 0:      # drop what the heaps have already evicted
+            prune()
+
+    prune()
+    traders = list(keep.values())
     if not traders:
         raise SourceError("Leaderboard contained no traders.")
     traders.sort(key=lambda t: t["perf"]["month"]["pnl"], reverse=True)
     return traders
+
+
+def parse_leaderboard(data, limit=250):
+    """Raw response -> the traders worth keeping, best 30-day PnL first."""
+    rows = data.get("leaderboardRows") if isinstance(data, dict) else data
+    if not isinstance(rows, list):
+        raise SourceError("Unexpected leaderboard format.")
+    return top_traders(rows, limit)
 
 
 def cached_leaderboard_age():
@@ -223,32 +311,35 @@ def fetch_leaderboard(progress=None, force=False, limit=250):
         headers={"Accept": "application/json", "Accept-Encoding": "gzip", "User-Agent": USER_AGENT},
     )
     resp = _open(req, timeout=180)
-
-    total = resp.headers.get("Content-Length")
-    total = int(total) if total and total.isdigit() else 0
-    buf = io.BytesIO()
-    read = 0
-    while True:
-        chunk = resp.read(1024 * 256)
-        if not chunk:
-            break
-        read += len(chunk)
-        if read > MAX_LEADERBOARD_BYTES:
-            raise SourceError("Leaderboard unexpectedly large (>400 MB) - aborted.")
-        buf.write(chunk)
-        if total:
-            say("Downloading leaderboard ... %d%%  (%.1f MB)" % (read * 100 // total, read / 1048576.0))
-        else:
-            say("Downloading leaderboard ... %.1f MB" % (read / 1048576.0,))
-
-    say("Parsing leaderboard ...")
-    text = _decode_body(resp, buf.getvalue())
     try:
-        traders = parse_leaderboard(json.loads(text))
+        total = resp.headers.get("Content-Length")
+        total = int(total) if total and total.isdigit() else 0
+        buf = io.BytesIO()
+        read = 0
+        while True:
+            chunk = resp.read(1024 * 256)
+            if not chunk:
+                break
+            read += len(chunk)
+            if read > MAX_LEADERBOARD_BYTES:
+                raise SourceError("Leaderboard unexpectedly large (>400 MB) - aborted.")
+            buf.write(chunk)
+            if total:
+                say("Downloading leaderboard ... %d%%  (%.1f MB)"
+                    % (read * 100 // total, read / 1048576.0))
+            else:
+                say("Downloading leaderboard ... %.1f MB" % (read / 1048576.0,))
+
+        say("Parsing leaderboard ...")
+        text = _decode_body(resp, buf.getvalue())
+        buf = None                       # free the compressed copy early
+    finally:
+        resp.close()
+    try:
+        top = top_traders(iter_leaderboard_rows(text), limit)
     except ValueError:
         raise SourceError("Leaderboard was not valid JSON.")
-
-    top = traders[:limit]
+    text = None
     try:
         os.makedirs(CACHE_DIR, exist_ok=True)
         with open(CACHE_FILE, "w", encoding="utf-8") as fh:

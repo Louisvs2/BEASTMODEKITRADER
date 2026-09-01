@@ -187,6 +187,39 @@ class PlanTests(unittest.TestCase):
         eth = [l for l in plan["legs"] if l["coin"] == "ETH"][0]
         self.assertAlmostEqual(eth["price"], 3000.0, msg="no mark price -> fall back to their entry")
 
+    def test_one_dominant_position_cannot_swallow_the_plan(self):
+        """
+        Regression: capping each weight and then renormalising inflated the
+        capped leg straight back over the limit - a whale holding 97 % in one
+        coin produced a 93 % leg while the tool promised a 40 % maximum.
+        """
+        positions = [
+            {"coin": "ETH", "side": "LONG", "notional": 9_700_000, "entryPx": 3000.0,
+             "leverage": 5, "roe": 1.0, "uPnl": 1.0, "size": 1.0},
+            {"coin": "BTC", "side": "LONG", "notional": 100_000, "entryPx": 70000.0,
+             "leverage": 3, "roe": 1.0, "uPnl": 1.0, "size": 1.0},
+            {"coin": "SOL", "side": "SHORT", "notional": 100_000, "entryPx": 170.0,
+             "leverage": 3, "roe": 1.0, "uPnl": 1.0, "size": 1.0},
+            {"coin": "ARB", "side": "LONG", "notional": 100_000, "entryPx": 1.5,
+             "leverage": 3, "roe": 1.0, "uPnl": 1.0, "size": 1.0},
+        ]
+        mids = {"ETH": 3000.0, "BTC": 70000.0, "SOL": 170.0, "ARB": 1.5}
+        plan = copyplan.build_plan(positions, 10000.0, "BALANCED", mids)
+
+        heaviest = max(l["weight"] for l in plan["legs"])
+        self.assertLessEqual(heaviest, copyplan.MAX_SINGLE_WEIGHT * 100 + 1e-6,
+                             "the dominant leg broke the cap: %.2f %%" % heaviest)
+        self.assertAlmostEqual(sum(l["weight"] for l in plan["legs"]), 100.0, places=6)
+
+    def test_cap_relaxes_when_arithmetically_impossible(self):
+        # two legs cannot both stay under 40 %, so an even split is correct
+        for got, want in zip(copyplan._capped_weights([9, 1], 0.4), [0.5, 0.5]):
+            self.assertAlmostEqual(got, want)
+        self.assertAlmostEqual(copyplan._capped_weights([1], 0.4)[0], 1.0)
+        three = copyplan._capped_weights([98, 1, 1], 0.4)
+        self.assertAlmostEqual(max(three), 0.4)
+        self.assertAlmostEqual(sum(three), 1.0)
+
     def test_single_position_is_capped(self):
         single = [{"coin": "ETH", "side": "LONG", "notional": 1e9, "entryPx": 3000.0,
                    "leverage": 10, "roe": 5.0, "uPnl": 1.0, "size": 1.0}]

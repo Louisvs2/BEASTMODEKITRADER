@@ -145,11 +145,21 @@ live.
 ## Tests
 
 ```
-python3 test_copyplan.py
+python3 test_copyplan.py       # 21 unit tests
+python3 test_integration.py    # 15 end-to-end tests against a local server
 ```
 
-15 tests covering response parsing and the plan maths — direction, weighting,
-stops, the leverage cap, rounding, and empty input. No network needed.
+The integration suite starts a small HTTP server that answers with real
+Hyperliquid response shapes, so the download, gzip handling, streaming parse,
+disk cache and error paths all run for real. No internet needed.
+
+Deeper checks live in `tests_manual/`:
+
+```
+python3 tests_manual/property_test.py                 # 20,000 random books
+cd tests_manual && xvfb-run python3 stress_a.py       # GUI under hostile input
+cd tests_manual && xvfb-run python3 stress_b.py
+```
 
 ---
 
@@ -162,7 +172,9 @@ stops, the leverage cap, rounding, and empty input. No network needed.
 | `theme.py` | colours, fonts, number formatting |
 | `hyperliquid_source.py` | fetching and parsing |
 | `copyplan.py` | the plan maths |
-| `test_copyplan.py` | tests |
+| `test_copyplan.py` | unit tests for parsing and the plan maths |
+| `test_integration.py` | end-to-end tests against a local stand-in server |
+| `tests_manual/` | GUI stress runs and a property test over random books |
 | `check_mac.command` | double-click: lists every Python here and which one works |
 | `fix_certificates.command` | double-click: repairs the HTTPS certificate store |
 | `make_icon.py` | regenerates the app icon |

@@ -26,6 +26,44 @@ TIER_BLURB = {
 }
 
 
+def _capped_weights(raw, cap):
+    """
+    Turn raw position sizes into weights that sum to 1 and where none exceeds
+    `cap`.
+
+    Capping and then renormalising does NOT work: dividing by the reduced sum
+    inflates the capped entry straight back over the limit. So the excess is
+    poured into the entries that still have room, repeatedly, until every
+    weight is under the cap.
+
+    With few legs the cap can be arithmetically impossible (two legs cannot
+    both stay under 40 %), so it is relaxed to an equal split in that case.
+    """
+    count = len(raw)
+    if count == 0:
+        return []
+    cap = max(cap, 1.0 / count)
+    total = float(sum(raw)) or 1.0
+    weights = [value / total for value in raw]
+
+    for _ in range(64):
+        excess = 0.0
+        room = 0.0
+        for i, weight in enumerate(weights):
+            if weight > cap + 1e-12:
+                excess += weight - cap
+                weights[i] = cap
+            else:
+                room += cap - weight
+        if excess <= 1e-12 or room <= 1e-12:
+            break
+        # spread the overflow across the remaining headroom
+        for i, weight in enumerate(weights):
+            if weight < cap - 1e-12:
+                weights[i] = weight + excess * (cap - weight) / room
+    return weights
+
+
 def _round_size(size):
     """Round a quantity to a sensible number of decimals."""
     if size >= 1000:
@@ -57,18 +95,22 @@ def build_plan(positions, capital, tier=DEFAULT_TIER, mids=None):
     if capital <= 0 or total_notional <= 0:
         return {
             "tier": tier, "capital": capital, "exposure": cfg["exposure"],
-            "stopPct": cfg["stop"], "legs": [], "skipped": [],
+            "stopPct": cfg["stop"], "legs": [], "skipped": [], "trimmed": [],
             "totalNotional": 0.0, "totalMargin": 0.0, "totalRisk": 0.0,
         }
 
     budget = capital * cfg["exposure"]
 
-    # Weights come from the trader's real position sizes, capped and
-    # renormalised so one huge position cannot swallow the whole plan.
-    weights = [min(p["notional"] / total_notional, MAX_SINGLE_WEIGHT)
-               for p in open_positions]
-    weight_sum = sum(weights) or 1.0
-    weights = [w / weight_sum for w in weights]
+    # Weights follow the trader's real position sizes, but no single leg may
+    # swallow the plan - see _capped_weights for why a plain cap is not enough.
+    raw = [p["notional"] for p in open_positions]
+    weights = _capped_weights(raw, MAX_SINGLE_WEIGHT)
+
+    # Note where the limit actually changed the mirroring, so the plan can say
+    # so instead of quietly handing over a different allocation.
+    raw_total = float(sum(raw)) or 1.0
+    trimmed = [pos["coin"] for pos, w, r in zip(open_positions, weights, raw)
+               if w < r / raw_total - 1e-9]
 
     legs, skipped = [], []
     for pos, weight in zip(open_positions, weights):
@@ -117,6 +159,7 @@ def build_plan(positions, capital, tier=DEFAULT_TIER, mids=None):
         "stopPct": cfg["stop"],
         "legs": legs,
         "skipped": skipped,
+        "trimmed": [c for c in trimmed if any(l["coin"] == c for l in legs)],
         "totalNotional": sum(l["notional"] for l in legs),
         "totalMargin": sum(l["margin"] for l in legs),
         "totalRisk": sum(l["risk"] for l in legs),
@@ -175,6 +218,16 @@ def plan_as_text(plan, trader_address, trader_name="", account_value=0.0):
                  % (_money(plan["totalRisk"]),
                     (plan["totalRisk"] / plan["capital"] * 100) if plan["capital"] else 0))
     lines.append("")
+
+    if plan.get("trimmed"):
+        lines.append("POSITION LIMIT APPLIED")
+        lines.append("  %s held a larger share of their book than this plan gives"
+                     % ", ".join(plan["trimmed"]))
+        lines.append("  it. No single position may exceed %.0f %% here, so the"
+                     % (MAX_SINGLE_WEIGHT * 100))
+        lines.append("  surplus went to the others. Your mix is deliberately less")
+        lines.append("  concentrated than theirs.")
+        lines.append("")
 
     if plan["skipped"]:
         lines.append("SKIPPED")

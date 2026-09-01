@@ -59,6 +59,7 @@ class App(tk.Tk):
         self.window_key = "month"
         self.current = None
         self.current_detail = None
+        self._warned_certificates = False
 
         self._style_tables()
         self._build_header()
@@ -197,7 +198,7 @@ class App(tk.Tk):
             origin = "cached, %d min old" % (age // 60) if age else "fresh"
             self.say("%d traders ranked  (%s)" % (len(traders), origin), T.LIME)
 
-        def failed(_msg):
+        def failed(msg):
             self.btn_reload.set_enabled(True)
             self.btn_reload.set_text("REFRESH RANKS")
             cached = src.load_cached_leaderboard()
@@ -205,6 +206,15 @@ class App(tk.Tk):
                 self.traders = cached
                 self.board.set_traders(cached)
                 self.say("Network failed - showing the last saved leaderboard.", T.GOLD)
+            if "certificate" in msg.lower() and not self._warned_certificates:
+                self._warned_certificates = True
+                messagebox.showwarning(
+                    "Certificates missing",
+                    "This Mac's Python has no trusted root certificates, so it "
+                    "cannot verify any HTTPS connection and no data can be "
+                    "loaded.\n\n"
+                    "Fix it once: double-click fix_certificates.command in the "
+                    "Whale Tracker folder, then start the app again.")
 
         self.run_bg(work, done, failed)
 

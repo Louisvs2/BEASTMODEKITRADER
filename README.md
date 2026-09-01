@@ -21,6 +21,22 @@ Apple. Right-click `WhaleTracker.app` → **Open** → **Open**. Once only.
 
 Prefer the Terminal? `./start.command`, or `python3 whaletracker.py`.
 
+### If it starts but loads nothing
+
+A red line at the bottom saying
+
+```
+[SSL: CERTIFICATE_VERIFY_FAILED] unable to get local issuer certificate
+```
+
+means this Mac's Python has no trusted root certificates — a python.org
+install does not register them — so it cannot verify any HTTPS connection.
+
+**Double-click `fix_certificates.command`.** It runs the official
+`Install Certificates.command` from your Python installation, falls back to
+installing the `certifi` bundle, and then actually tests the connection so
+you know whether it worked. Certificate checking is never switched off.
+
 ### If it will not start
 
 Double-click **`check_mac.command`**. It prints every Python on this Mac, says
@@ -148,6 +164,7 @@ stops, the leverage cap, rounding, and empty input. No network needed.
 | `copyplan.py` | the plan maths |
 | `test_copyplan.py` | tests |
 | `check_mac.command` | double-click: lists every Python here and which one works |
+| `fix_certificates.command` | double-click: repairs the HTTPS certificate store |
 | `make_icon.py` | regenerates the app icon |
 | `build_app.sh` | builds the standalone .app |
 

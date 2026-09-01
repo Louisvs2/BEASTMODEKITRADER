@@ -3,6 +3,7 @@
 Tests for the parsing and plan maths. No network needed.
 Run:  python3 test_copyplan.py
 """
+import ssl
 import unittest
 
 import copyplan
@@ -96,6 +97,30 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(fills[0]["side"], "BUY")       # newest first
         self.assertEqual(fills[1]["side"], "SELL")
         self.assertAlmostEqual(fills[1]["closedPnl"], 4200.0)
+
+
+class CertificateTests(unittest.TestCase):
+    """A missing certificate store must be told apart from a plain outage."""
+
+    def test_recognises_ssl_verification_error(self):
+        self.assertTrue(src._is_cert_failure(ssl.SSLCertVerificationError("bad")))
+
+    def test_recognises_the_message_form(self):
+        # urllib often hands the failure over as a plain wrapped exception
+        self.assertTrue(src._is_cert_failure(
+            Exception("[SSL: CERTIFICATE_VERIFY_FAILED] unable to get local issuer")))
+
+    def test_ignores_ordinary_outages(self):
+        for other in (TimeoutError("timed out"), OSError("Network unreachable"),
+                      Exception("Connection refused")):
+            self.assertFalse(src._is_cert_failure(other), other)
+
+    def test_context_verifies(self):
+        ctx = src._ssl_context()
+        self.assertIsNotNone(ctx)
+        self.assertEqual(ctx.verify_mode, ssl.CERT_REQUIRED,
+                         "verification must never be switched off")
+        self.assertTrue(ctx.check_hostname)
 
 
 class PlanTests(unittest.TestCase):

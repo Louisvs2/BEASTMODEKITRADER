@@ -52,11 +52,41 @@ class SourceError(Exception):
     """Something went wrong fetching data - shown to the user as plain text."""
 
 
+class CertificateError(SourceError):
+    """TLS worked but no trusted root certificates were available."""
+
+
 def _ssl_context():
+    """
+    A verifying TLS context.
+
+    Python installed from python.org does not register the system root
+    certificates, so every HTTPS call fails with CERTIFICATE_VERIFY_FAILED
+    until either Apple's "Install Certificates.command" has been run or the
+    certifi bundle is present. Prefer certifi when it is importable; fall
+    back to the default store otherwise. Verification is never disabled.
+    """
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        pass
     try:
         return ssl.create_default_context()
     except Exception:
         return None
+
+
+CERT_HELP = (
+    "No trusted certificates - macOS Python cannot verify HTTPS.\n"
+    "Fix: double-click fix_certificates.command in the app folder."
+)
+
+
+def _is_cert_failure(exc):
+    if isinstance(exc, ssl.SSLCertVerificationError):
+        return True
+    return "CERTIFICATE_VERIFY_FAILED" in str(exc)
 
 
 def _open(req, timeout=TIMEOUT):
@@ -68,8 +98,12 @@ def _open(req, timeout=TIMEOUT):
     except urllib.error.HTTPError as exc:
         raise SourceError("Server replied HTTP %s (%s)" % (exc.code, exc.reason))
     except urllib.error.URLError as exc:
+        if _is_cert_failure(exc.reason) or _is_cert_failure(exc):
+            raise CertificateError(CERT_HELP)
         raise SourceError("No connection: %s" % (exc.reason,))
     except Exception as exc:  # socket timeouts, ssl, ...
+        if _is_cert_failure(exc):
+            raise CertificateError(CERT_HELP)
         raise SourceError("Connection failed: %s" % (exc,))
 
 

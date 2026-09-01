@@ -56,6 +56,12 @@ echo ""
 PICKED="$(find_working_python)"
 if [ -n "$PICKED" ]; then
     echo "=> Whale Tracker will use: $PICKED"
+    printf "   HTTPS: "
+    if "$PICKED" -c 'import urllib.request; urllib.request.urlopen("https://api.hyperliquid.xyz/info", data=b"{\"type\":\"allMids\"}", timeout=20)' >/dev/null 2>&1; then
+        echo "ok"
+    else
+        echo "BROKEN - double-click fix_certificates.command"
+    fi
 else
     echo "=> No usable Python. Install Python 3.12 from python.org,"
     echo "   or update macOS to 15.7 or newer."
